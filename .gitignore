@@ -2,3 +2,4 @@
 .vscode
 ca.crt
 .env
+node_modules
