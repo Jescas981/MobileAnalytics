@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>VehicleSense — Live Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+<link rel="stylesheet" href="static/index.css"/>
+</head>
+<body>
+
+<!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-icon">⬡</span>
+    <span class="logo-text">Vehicle<strong>Sense</strong></span>
+  </div>
+
+  <nav class="sidebar-nav">
+    <a href="#" class="nav-item active" data-section="dashboard">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </a>
+    <a href="#" class="nav-item" data-section="imu">
+      <svg viewBox="0 0 24 24"><polyline points="2 12 6 5 10 18 14 8 18 15 22 12"/></svg>
+      Accelerometer
+    </a>
+    <a href="#" class="nav-item" data-section="gyro">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+      Gyroscope
+    </a>
+    <a href="#" class="nav-item" data-section="gps">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 14 8 14s8-8.6 8-14a8 8 0 0 0-8-8z"/></svg>
+      GPS Track
+    </a>
+  </nav>
+
+  <!-- Time window -->
+  <div class="sidebar-time-section">
+    <p class="section-label">TIME WINDOW</p>
+    <div class="time-presets">
+      <button class="preset active" data-minutes="30">30 min</button>
+      <button class="preset" data-minutes="60">1 hr</button>
+      <button class="preset" data-minutes="180">3 hr</button>
+      <button class="preset" data-minutes="1440">24 hr</button>
+    </div>
+
+    <!-- Day picker -->
+    <div class="custom-day">
+      <p class="section-label" style="margin-top:1.2rem;">SELECT DAY</p>
+      <input type="date" id="dayPicker" class="day-picker"/>
+      <button id="applyDay" class="apply-btn">Apply</button>
+    </div>
+    <div class="available-days" id="availableDays"></div>
+
+    <!-- Session filter -->
+    <div class="session-filter">
+      <p class="section-label" style="margin-top:1.2rem;">SESSION</p>
+      <select id="sessionSelect" class="session-select">
+        <option value="all">All sessions</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="sidebar-status">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Connecting…</span>
+  </div>
+</aside>
+
+<!-- ── Main ─────────────────────────────────────────────────────────────── -->
+<main class="main">
+
+  <!-- Header -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <h1 id="sectionTitle">Dashboard</h1>
+      <span class="topbar-sub" id="windowLabel">Last 30 minutes</span>
+    </div>
+    <div class="topbar-right">
+      <div class="live-badge" id="liveBadge">
+        <span class="pulse-ring"></span>
+        LIVE
+      </div>
+      <div class="clock" id="clock"></div>
+      <button class="refresh-btn" id="refreshBtn" title="Refresh">
+        <svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── DASHBOARD SECTION ─────────────────────────────────────────────── -->
+  <section id="section-dashboard" class="content-section active">
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <span class="kpi-label">IMU Samples</span>
+        <span class="kpi-value" id="kpiImu">—</span>
+        <span class="kpi-sub">in window</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">GPS Points</span>
+        <span class="kpi-value" id="kpiGps">—</span>
+        <span class="kpi-sub">in window</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Accel X avg</span>
+        <span class="kpi-value" id="kpiAxAvg">—</span>
+        <span class="kpi-sub">m/s²</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Accel Z avg</span>
+        <span class="kpi-value" id="kpiAzAvg">—</span>
+        <span class="kpi-sub">m/s²</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Gyro Z avg</span>
+        <span class="kpi-value" id="kpiGzAvg">—</span>
+        <span class="kpi-sub">rad/s</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Last GPS</span>
+        <span class="kpi-value" id="kpiLastGps" style="font-size:1rem;">—</span>
+        <span class="kpi-sub">lat / lon</span>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card wide">
+        <div class="chart-header">
+          <span class="chart-title">Accelerometer — X · Y · Z</span>
+          <span class="chart-badge">ACC</span>
+        </div>
+        <div class="chart-wrap"><canvas id="imuChart"></canvas></div>
+      </div>
+      <div class="chart-card wide">
+        <div class="chart-header">
+          <span class="chart-title">Gyroscope — X · Y · Z</span>
+          <span class="chart-badge">GYRO</span>
+        </div>
+        <div class="chart-wrap"><canvas id="gyroChartDash"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <span class="chart-title">Accel Magnitude</span>
+          <span class="chart-badge">IMU</span>
+        </div>
+        <div class="chart-wrap"><canvas id="magChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <span class="chart-title">GPS Track</span>
+          <span class="chart-badge">GPS</span>
+        </div>
+        <div id="miniMap" class="mini-map"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── ACCELEROMETER SECTION ─────────────────────────────────────────── -->
+  <section id="section-imu" class="content-section">
+    <div class="stats-row" id="imuStatsRow"></div>
+    <div class="chart-card" style="margin-top:1.5rem;">
+      <div class="chart-header">
+        <span class="chart-title">Accelerometer X · Y · Z</span>
+        <span class="chart-badge">FULL VIEW</span>
+      </div>
+      <div class="chart-wrap tall"><canvas id="imuChartFull"></canvas></div>
+    </div>
+    <div class="chart-card" style="margin-top:1.5rem;">
+      <div class="chart-header">
+        <span class="chart-title">Distribution — Histogram per axis</span>
+        <span class="chart-badge">STATS</span>
+      </div>
+      <div class="charts-grid-3">
+        <div class="chart-wrap"><canvas id="histX"></canvas></div>
+        <div class="chart-wrap"><canvas id="histY"></canvas></div>
+        <div class="chart-wrap"><canvas id="histZ"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── GYROSCOPE SECTION ─────────────────────────────────────────────── -->
+  <section id="section-gyro" class="content-section">
+    <div class="stats-row" id="gyroStatsRow"></div>
+    <div class="chart-card" style="margin-top:1.5rem;">
+      <div class="chart-header">
+        <span class="chart-title">Gyroscope X · Y · Z</span>
+        <span class="chart-badge">FULL VIEW</span>
+      </div>
+      <div class="chart-wrap tall"><canvas id="gyroChartFull"></canvas></div>
+    </div>
+    <div class="chart-card" style="margin-top:1.5rem;">
+      <div class="chart-header">
+        <span class="chart-title">Distribution — Histogram per axis</span>
+        <span class="chart-badge">STATS</span>
+      </div>
+      <div class="charts-grid-3">
+        <div class="chart-wrap"><canvas id="histGX"></canvas></div>
+        <div class="chart-wrap"><canvas id="histGY"></canvas></div>
+        <div class="chart-wrap"><canvas id="histGZ"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── GPS SECTION ───────────────────────────────────────────────────── -->
+  <section id="section-gps" class="content-section">
+    <div class="kpi-row" id="gpsKpiRow"></div>
+    <div class="gps-layout">
+      <div class="chart-card map-card">
+        <div class="chart-header">
+          <span class="chart-title">GPS Track</span>
+          <span class="chart-badge">MAP</span>
+        </div>
+        <div id="fullMap" class="full-map"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header"><span class="chart-title">Latitude over time</span></div>
+        <div class="chart-wrap"><canvas id="latChart"></canvas></div>
+        <div class="chart-header" style="margin-top:1rem;"><span class="chart-title">Longitude over time</span></div>
+        <div class="chart-wrap"><canvas id="lonChart"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="static/index.js"></script>
+</body>
+</html>
