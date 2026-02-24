@@ -19,7 +19,7 @@ const MQTT_HOST = process.env.MQTT_HOST || "localhost";
 const MQTT_PORT = parseInt(process.env.MQTT_PORT || "8883");
 const MQTT_USER = process.env.MQTT_USER || "";
 const MQTT_PASS = process.env.MQTT_PASS || "";
-const MQTT_CA_CERT = process.env.MQTT_CA_CERT || "ca.crt";
+const MQTT_CA_CERT = process.env.MQTT_CA_CERT || "";
 const MQTT_TOPIC_IMU = "/mobile/imu";
 const MQTT_TOPIC_GPS = "/mobile/gps";
 
@@ -69,10 +69,15 @@ function initMqtt() {
         options.password = MQTT_PASS;
     }
 
-    if (fs.existsSync(MQTT_CA_CERT)) {
-        options.ca = fs.readFileSync(MQTT_CA_CERT);
-        options.rejectUnauthorized = false; // Match the python 'tls_insecure_set(False)' if it was True, but here it was False. Actually, in python it was client.tls_insecure_set(False) meaning it SHOULD validate. But often in dev we use self-signed.
-        console.log("[MQTT] TLS configured with CA certificate");
+    // if (fs.existsSync(MQTT_CA_CERT)) {
+    //     options.ca = fs.readFileSync(MQTT_CA_CERT);
+    //     options.rejectUnauthorized = false; // Match the python 'tls_insecure_set(False)' if it was True, but here it was False. Actually, in python it was client.tls_insecure_set(False) meaning it SHOULD validate. But often in dev we use self-signed.
+    //     console.log("[MQTT] TLS configured with CA certificate");
+    // }
+
+    if (process.env.MQTT_CA_CERT) {
+    options.ca = process.env.MQTT_CA_CERT.replace(/\\n/g, '\n');
+    options.rejectUnauthorized = true;
     }
 
     const client = mqtt.connect(options);
